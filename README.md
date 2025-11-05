@@ -1,40 +1,26 @@
-# DL-Fall-25 Kaggle Competition: Math Answer Verification
+# Math Question Answer Verification - DL Fall 2025
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Hugging Face](https://img.shields.io/badge/🤗-Transformers-yellow.svg)](https://huggingface.co/)
 
-Fine-tuning Large Language Models (LLMs) with LoRA to verify the correctness of student answers to math problems.
-
-## 📖 Table of Contents
-- [Overview](#overview)
-- [Dataset](#dataset)
-- [Approach](#approach)
-- [Project Status](#project-status)
-- [Quick Start](#quick-start)
-- [Repository Structure](#repository-structure)
-- [Requirements](#requirements)
-- [Usage](#usage)
-- [Results](#results)
-- [Known Issues](#known-issues)
-- [Next Steps](#next-steps)
-- [Contributing](#contributing)
-- [Acknowledgments](#acknowledgments)
+Fine-tuning Llama-3.1-8B with LoRA for binary classification of mathematical answer correctness.
 
 ---
 
-## 🎯 Overview
+## 📖 Overview
 
-**Competition Task**: Binary classification to predict whether a student's answer to a math problem is correct or incorrect.
+**Competition Task**: Predict whether a student's answer to a math problem is correct or incorrect.
 
-**Method**: Supervised Fine-Tuning (SFT) of pre-trained language models using LoRA (Low-Rank Adaptation) for parameter-efficient training.
+**Approach**: Parameter-efficient fine-tuning using LoRA (Low-Rank Adaptation) on Llama-3.1-8B.
 
 **Key Features**:
-- ✅ End-to-end pipeline from data loading to submission generation
-- ✅ LoRA fine-tuning for efficient training
-- ✅ Structured prompt engineering for math verification
-- ✅ Compatible with both local (macOS/MPS) and cloud GPU environments
-- ✅ Constrained generation to output only binary predictions
+- Structured prompt engineering with explicit solution context
+- Constrained decoding for reliable binary predictions
+- Stratified sampling to maintain class balance
+- 4-bit quantization for memory efficiency
+
+**Team Repository**: [https://github.com/yuktakul04/dl-midterm-f25](https://github.com/yuktakul04/dl-midterm-f25)
 
 ---
 
@@ -43,48 +29,91 @@ Fine-tuning Large Language Models (LLMs) with LoRA to verify the correctness of 
 **Source**: [nyu-dl-teach-maths-comp](https://huggingface.co/datasets/ad6398/nyu-dl-teach-maths-comp) on Hugging Face
 
 **Statistics**:
-- **Training Set**: 1,000,000 samples
-- **Test Set**: 10,000 samples
-- **Class Balance**: 50% correct, 50% incorrect
+- Training Set: 1,000,000 samples
+- Test Set: 10,000 samples
+- Class Balance: 50% correct / 50% incorrect
 
 **Features**:
 | Column | Description |
 |--------|-------------|
-| `question` | The math problem text |
+| `question` | Math problem text |
 | `answer` | Student's provided answer |
 | `solution` | Reference solution with reasoning |
 | `is_correct` | Ground truth label (True/False) |
 
-**Sample**:
-```python
-{
-  "question": "Solve for x: 2x + 5 = 13",
-  "answer": "x = 4",
-  "solution": "2x + 5 = 13\n2x = 13 - 5\n2x = 8\nx = 4",
-  "is_correct": True
-}
-```
+---
+
+## 🎯 Experiments & Results
+
+We conducted two major training experiments with different configurations:
+
+### Try 1: Fast Training Configuration
+- **Training Data**: 45,000 samples (90/10 train/val split)
+- **LoRA Configuration**:
+  - Rank: 16
+  - Alpha: 32
+  - Dropout: 0.05
+  - Trainable Parameters: 41.9M (0.52%)
+- **Training Settings**:
+  - Epochs: 1
+  - Learning Rate: 2e-4
+  - Warmup Steps: 100
+  - Max Sequence Length: 2048
+- **Hardware**: Google Colab A100 GPU
+- **Result**: **Public Score: 0.844 (84.4% accuracy)**
+
+### Try 2: Enhanced Configuration ✨
+- **Training Data**: 49,750 samples (99.5/0.5 train/val split)
+- **LoRA Configuration**:
+  - Rank: 32 ⬆️
+  - Alpha: 64 ⬆️
+  - Dropout: 0.05
+  - Trainable Parameters: 83.9M (1.03%) ⬆️
+- **Training Settings**:
+  - Epochs: 2 ⬆️
+  - Learning Rate: 2e-4
+  - Warmup Steps: 300 ⬆️
+  - Max Sequence Length: 2048
+- **Hardware**: Google Colab A100 GPU
+- **Result**: **Public Score: 0.858 (85.8% accuracy)** 🎉
+
+### Performance Comparison
+
+| Configuration | Public Score | Trainable Params | Epochs | LoRA Rank | Train Samples |
+|--------------|--------------|------------------|--------|-----------|---------------|
+| Try 1 | 0.844 | 41.9M (0.52%) | 1 | 16 | 45,000 |
+| **Try 2** | **0.858** | **83.9M (1.03%)** | **2** | **32** | **49,750** |
+| **Improvement** | **+1.4%** | **+2x** | **+2x** | **+2x** | **+10%** |
 
 ---
 
-## 🧠 Approach
+## 🧠 Model Architecture
 
-### Model Architecture
-- **Base Model**: TinyLlama-1.1B-Chat-v1.0 (prototyping) / Llama-3-8B-Instruct (production)
-- **Fine-tuning Method**: LoRA (Low-Rank Adaptation)
-  - Rank (r): 16
-  - Alpha: 32
-  - Dropout: 0.05
-  - Target Modules: q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
-  - **Trainable Parameters**: ~1.1% of total model parameters
+### Base Model
+- **Model**: Llama-3.1-8B via Unsloth
+- **Quantization**: 4-bit for memory efficiency
+- **Max Context Length**: 2048 tokens
+
+### LoRA Configuration (Best)
+```python
+{
+    "r": 32,                  # Low-rank dimension
+    "lora_alpha": 64,         # Scaling factor (2×r)
+    "lora_dropout": 0.05,     # Regularization
+    "target_modules": [
+        "q_proj", "k_proj", "v_proj", "o_proj",
+        "gate_proj", "up_proj", "down_proj"
+    ],
+    "trainable_params": "83.9M (1.03%)"
+}
+```
 
 ### Prompt Engineering
-Structured three-part prompt format:
 ```
 <<SYS>>
 You are a precise math answer verifier.
-Given a problem, a student's answer, and an optional worked solution,
-respond with a single digit label without explanation:
+Given a problem, a student's answer, and a reference solution,
+respond with a single digit:
 - 1 if the student's answer is correct
 - 0 if the student's answer is incorrect
 <</SYS>>
@@ -92,7 +121,7 @@ respond with a single digit label without explanation:
 <<USR>>
 Problem: {question}
 Student Answer: {answer}
-Solution (reference reasoning): {solution}
+Solution (reference): {solution}
 Return only the digit (1 or 0).
 <</USR>>
 
@@ -100,39 +129,10 @@ Return only the digit (1 or 0).
 {label}
 ```
 
-### Training Strategy
-1. **Data Preprocessing**: Stratified train/validation split (95/5)
-2. **Training**: Supervised Fine-Tuning with language modeling objective
-3. **Inference**: Constrained generation forcing binary output (0 or 1)
-4. **Optimization**: Gradient accumulation for effective larger batch sizes
-
----
-
-## 📈 Project Status
-
-### ✅ Completed
-- [x] Environment setup (macOS/MPS, Linux/CUDA compatible)
-- [x] Dataset loading and preprocessing
-- [x] Model architecture with LoRA configuration
-- [x] Prompt engineering and data formatting
-- [x] Training pipeline implementation
-- [x] Inference pipeline with constrained generation
-- [x] Submission file generation
-- [x] Initial training run completed (120 steps)
-
-### ⚠️ In Progress
-- [ ] **Debugging all-False predictions** (CRITICAL)
-- [ ] Scaling to full dataset training
-- [ ] Hyperparameter optimization
-- [ ] Validation metrics tracking
-
-### 🎯 To Do
-- [ ] Move to GPU environment (Kaggle/Colab)
-- [ ] Switch to Llama-3-8B for better performance
-- [ ] Train on full 1M dataset for 2-3 epochs
-- [ ] Generate predictions for all 10k test samples
-- [ ] Implement ensemble methods
-- [ ] Add evaluation metrics (accuracy, F1, precision, recall)
+### Constrained Decoding
+- Forces model to output only "0" or "1" tokens
+- Prevents hallucinations and parsing errors
+- Implemented via custom `AllowedTokensLogitsProcessor`
 
 ---
 
@@ -140,386 +140,130 @@ Return only the digit (1 or 0).
 
 ### Prerequisites
 ```bash
-Python 3.10-3.12 (3.13 has compatibility issues)
-CUDA-capable GPU (recommended) or Apple Silicon Mac
-8GB+ RAM minimum, 16GB+ recommended
+Python 3.10+
+Google Colab with A100 GPU (recommended)
+Hugging Face account with Llama-3 access
 ```
 
 ### Installation
 
 1. **Clone the repository**:
 ```bash
-git clone <your-repo-url>
-cd DL_Midterm
+git clone https://github.com/yuktakul04/dl-midterm-f25.git
+cd dl-midterm-f25
 ```
 
-2. **Install dependencies**:
-
-**For GPU (Kaggle/Colab)**:
-```bash
-pip install -U "accelerate>=0.33.0" "bitsandbytes>=0.43.0" \
-  "datasets>=2.20.0" "transformers>=4.44.0" "trl>=0.10.1" \
-  "peft>=0.12.0" "torch>=2.0.0" "pandas>=2.1.0" "numpy>=1.26.0"
+2. **Install dependencies** (in Google Colab):
+```python
+# Install Unsloth and dependencies
+!pip install unsloth xformers
+!pip install transformers==4.56.2 trl==0.22.2
 ```
 
-**For macOS/CPU** (testing only):
-```bash
-pip install -U "numpy>=1.26,<2.0" "pandas>=2.1.0" "datasets>=2.20.0" \
-  "accelerate>=0.33.0" "transformers==4.40.2" "trl==0.9.6" \
-  "peft>=0.12.0" "torch>=2.3.0"
-```
-
-3. **Authenticate with Hugging Face** (for Llama-3):
+3. **Authenticate with Hugging Face**:
 ```python
 from huggingface_hub import login
 login(token="your_hf_token_here")
 ```
 
-### Running the Notebook
+### Running Training
 
-**Option A: Local Testing** (macOS/limited GPU)
-```bash
-jupyter notebook DL_Fall25_Clean_mac_TinyLlama_SFT_to_Submission-5.ipynb
-# Run cells 1-16 sequentially
-```
+Open one of our notebooks in Google Colab:
+- `Ahn_Try_1_Success.ipynb` - Fast training configuration
+- `David_Try_2_Success.ipynb` - Best performing configuration
 
-**Option B: Kaggle** (Recommended)
-1. Upload notebook to Kaggle
-2. Enable GPU (T4 or better)
-3. Enable Internet access
-4. Add `HF_TOKEN` secret in notebook settings
-5. Run all cells
+**Steps**:
+1. Enable GPU (Runtime → Change runtime type → A100 GPU)
+2. Enable Internet access
+3. Add `HF_TOKEN` to Colab Secrets
+4. Run all cells sequentially
+
+**Expected Training Time**:
+- Try 1: ~3-4 hours on A100
+- Try 2: ~8-9 hours on A100
 
 ---
 
 ## 📁 Repository Structure
 
 ```
-DL_Midterm/
+dl-midterm-f25/
+├── notebooks/
+│   ├── Ahn_Try_1_Success.ipynb                 # Try 1: Fast training (84.4%)
+│   └── Ahn_Try_2_Not_Submitted.ipynb           # Try 2: Last training but couldn't submit in Kaggle due to late submission
+│   └──
+│   └── David_Try_1_Runtime_Disconnected.ipynb  # Try 1: Trained 1M data but runtime disconnected while training
+│   ├── David_Try_2_Success.ipynb               # Try 2: Best model (85.8%)
+│   └── Starter.ipynb                           # Competition starter code
+│   └──
+│   └──Yukta_Setup.ipynb                        # Basic setup notebook
 │
-├── DL_Fall25_Clean_mac_TinyLlama_SFT_to_Submission-5.ipynb  # Main notebook
-├── README.md                                                  # This file
-├── requirements.txt                                           # Python dependencies
-├── LICENSE                                                    # License file
+├── src/
+│   ├── __init__.py
+|
+├── submissions/
+│   ├── Ahn_Submission.csv               # Try 1 predictions
+│   └── David_Submission.csv             # Try 2 predictions
 │
-├── outputs_fast/                      # Training outputs (gitignored)
-│   ├── adapter/                       # LoRA adapter weights
-│   │   ├── adapter_config.json
-│   │   └── adapter_model.safetensors
-│   ├── submission.csv                 # Generated predictions
-│   └── [checkpoints]/                 # Training checkpoints
-│
-├── data/                              # (Optional) Local data cache
-│   └── sample_sub.csv                 # Kaggle sample submission format
-│
-├── docs/                              # Documentation
-│   ├── HANDOFF_REPORT.md              # Detailed progress report
-│   └── TROUBLESHOOTING.md             # Common issues and solutions
-│
-└── scripts/                           # (Future) Utility scripts
-    ├── train.py                       # Standalone training script
-    ├── inference.py                   # Batch inference script
-    └── evaluate.py                    # Evaluation metrics
+├── README.md
+└── .gitignore
 ```
 
 ---
 
-## 🔧 Requirements
+## 🔧 Training Configuration
 
-### Core Dependencies
-```
-torch>=2.3.0
-transformers>=4.40.2
-datasets>=2.20.0
-accelerate>=0.33.0
-peft>=0.12.0
-trl>=0.9.6
-pandas>=2.1.0
-numpy>=1.26.0,<2.0
-```
-
-### Optional (for GPU training)
-```
-bitsandbytes>=0.43.0  # For 4-bit quantization
-```
-
-See `requirements.txt` for complete list.
-
----
-
-## 💻 Usage
-
-### Configuration
-Edit the `Config` dataclass in the notebook (Cell 7):
-
+### Hyperparameters (Try 2 - Best)
 ```python
-@dataclass
-class Config:
-    # Model
-    model_id: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"  # Or "meta-llama/Meta-Llama-3-8B-Instruct"
+{
+    "model": "unsloth/Meta-Llama-3.1-8B",
+    "max_seq_length": 2048,
+    "load_in_4bit": True,
     
-    # Training
-    epochs: int = 2
-    lr: float = 2e-4
-    per_device_bs: int = 1
-    grad_accum: int = 16
-    max_len: int = 1024
-    
-    # Data limits (None = use all)
-    TRAIN_LIMIT: int | None = 5000   # Set to None for full training
-    VAL_LIMIT: int | None = 500
-    TEST_LIMIT: int | None = None
+    # Data
+    "train_samples": 49750,
+    "val_samples": 250,
+    "stratified_split": True,
     
     # LoRA
-    lora_r: int = 16
-    lora_alpha: int = 32
-    lora_dropout: float = 0.05
-```
-
-### Training
-```python
-# Fast prototyping (5k samples, ~3 minutes on MPS)
-N_TRAIN = 5000
-MAX_STEPS = 120
-
-# Full training (recommended for competition)
-cfg.TRAIN_LIMIT = None  # Use all 1M samples
-cfg.epochs = 2
-# Expected time: 2-4 hours on T4 GPU
-```
-
-### Inference
-```python
-# Generate predictions for all test samples
-TEST_LIMIT = None  # Generate all 10k predictions
-BATCH_SIZE = 4     # Adjust based on GPU memory
-
-# Output: outputs_fast/submission.csv
-```
-
-### Submission
-```bash
-# Validate submission format
-python -c "
-import pandas as pd
-df = pd.read_csv('outputs_fast/submission.csv')
-print(f'Rows: {len(df)}')
-print(f'Columns: {list(df.columns)}')
-print(f'Value distribution:\n{df.is_correct.value_counts()}')
-"
-
-# Upload submission.csv to Kaggle competition page
-```
-
----
-
-## 📊 Results
-
-### Current Status (Baseline Run)
-
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Training Samples | 600 | Limited subset |
-| Training Steps | 120 | ~3 minutes |
-| Training Loss | 0.8895 → 0.7886 | ✅ Decreasing |
-| Test Predictions | 1,000 | Subset only |
-| **Test Accuracy** | **❌ ~0%** | **Predicting all False** |
-
-### Expected Performance (Full Training)
-
-| Setup | Expected Accuracy | Training Time |
-|-------|------------------|---------------|
-| TinyLlama-1.1B (50k samples) | 55-65% | ~30 min |
-| TinyLlama-1.1B (full dataset) | 65-72% | ~3 hours |
-| Llama-3-8B (full dataset) | **75-85%** | **2-4 hours** |
-
----
-
-## ⚠️ Known Issues
-
-### 🚨 Critical Issues
-
-1. **All-False Predictions**
-   - **Status**: Active bug
-   - **Impact**: Model predicts `is_correct=False` for 100% of test samples
-   - **Likely Causes**:
-     - Insufficient training (only 120 steps on 600 samples)
-     - Sequence length too short (384 tokens) causing truncation
-     - Token ID selection logic issues
-   - **Next Steps**: Debug inference pipeline (see Cell 16)
-
-### ⚠️ Compatibility Issues
-
-2. **Python 3.13 Incompatibility**
-   - **Error**: `tokenizers` package fails to build (PyO3 version mismatch)
-   - **Workaround**: Use fast tokenizer (currently implemented)
-   - **Recommendation**: Use Python 3.10-3.12
-
-3. **TRL API Version Mismatch** (Cell 14)
-   - **Error**: `TypeError: SFTTrainer.__init__() got an unexpected keyword argument 'tokenizer'`
-   - **Status**: Non-blocking (Cell 11 works fine)
-   - **Action**: Can be removed or fixed for newer TRL versions
-
-### 🔍 Minor Issues
-
-4. **Jupyter History Error**
-   - **Error**: `OperationalError('attempt to write a readonly database')`
-   - **Impact**: None (history not saved)
-   - **Fix**: Disabled in Cell 19
-
-5. **TOKENIZERS_PARALLELISM Warning**
-   - **Warning**: Fork safety warning from tokenizers
-   - **Fix**: Set `TOKENIZERS_PARALLELISM=false` (implemented in Cell 19)
-
----
-
-## 🎯 Next Steps
-
-### Immediate Actions (Priority Order)
-
-#### 1. 🔴 Debug All-False Predictions
-```python
-# Add debugging cell to inspect model outputs
-for i in range(10):
-    prompt = make_text(test_ds[i], use_solution=True, label=None)
-    inputs = tokenizer(prompt, return_tensors="pt")
-    outputs = model_inf(**inputs)
-    logits = outputs.logits[0, -1]
+    "lora_r": 32,
+    "lora_alpha": 64,
+    "lora_dropout": 0.05,
     
-    id0 = tokenizer.convert_tokens_to_ids("0")
-    id1 = tokenizer.convert_tokens_to_ids("1")
-    print(f"Sample {i}: logit[0]={logits[id0]:.3f}, logit[1]={logits[id1]:.3f}")
-```
-
-#### 2. 🟡 Scale Up Training
-- Move to Kaggle/Colab with T4 GPU
-- Switch to Llama-3-8B-Instruct
-- Train on full 1M dataset for 2-3 epochs
-- Increase max_length to 1024-2048 tokens
-
-#### 3. 🟢 Improve Evaluation
-- Add validation accuracy tracking during training
-- Implement F1 score, precision, recall metrics
-- Add confusion matrix analysis
-- Monitor class balance in predictions
-
-#### 4. 🟢 Optimize Hyperparameters
-Experiment with:
-- Learning rates: [1e-5, 2e-5, 5e-5, 1e-4, 2e-4]
-- LoRA ranks: [16, 32, 64]
-- Batch sizes: [8, 16, 32] (with gradient accumulation)
-- Max lengths: [512, 1024, 1536, 2048]
-
-#### 5. 🟢 Advanced Techniques
-- Ensemble multiple model checkpoints
-- Try different prompt formats
-- Experiment with temperature and sampling during inference
-- Add data augmentation (paraphrasing)
-
----
-
-## 🤝 Contributing
-
-### Development Workflow
-1. Create a new branch: `git checkout -b feature/your-feature-name`
-2. Make changes and test thoroughly
-3. Update documentation if needed
-4. Commit: `git commit -m "Description of changes"`
-5. Push: `git push origin feature/your-feature-name`
-6. Create Pull Request
-
-### Code Style
-- Follow PEP 8 guidelines
-- Add docstrings to functions
-- Comment complex logic
-- Update README for new features
-
-### Testing Checklist
-- [ ] Code runs without errors
-- [ ] Results are reproducible (seed set)
-- [ ] Submission file format is valid
-- [ ] Memory usage is reasonable
-- [ ] Training loss decreases
-- [ ] Validation accuracy improves
-
----
-
-## 📚 Resources
-
-### Documentation
-- [Transformers Documentation](https://huggingface.co/docs/transformers)
-- [PEFT Documentation](https://huggingface.co/docs/peft)
-- [TRL Documentation](https://huggingface.co/docs/trl)
-- [LoRA Paper](https://arxiv.org/abs/2106.09685)
-
-### Tutorials
-- [Fine-tuning LLMs with LoRA](https://huggingface.co/blog/lora)
-- [Efficient Training on a Single GPU](https://huggingface.co/docs/transformers/perf_train_gpu_one)
-- [LLM Inference Optimization](https://huggingface.co/docs/transformers/llm_tutorial_optimization)
-
-### Competition
-- [Kaggle Competition Page](https://www.kaggle.com/competitions/dl-fall-25)
-- [Dataset on Hugging Face](https://huggingface.co/datasets/ad6398/nyu-dl-teach-maths-comp)
-- [Leaderboard](https://www.kaggle.com/competitions/dl-fall-25/leaderboard)
-
----
-
-## 🙏 Acknowledgments
-
-- **Course**: Deep Learning - Fall 2025
-- **Competition Host**: NYU / Kaggle
-- **Base Models**: 
-  - [TinyLlama](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) by TinyLlama team
-  - [Llama-3](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct) by Meta AI
-- **Libraries**: Hugging Face Transformers, PEFT, TRL
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-## 📧 Contact
-
-For questions or issues:
-- Open an issue on GitHub
-- Contact: [Your Email/Team Contact]
-- Course Forum: [Link if applicable]
-
----
-
-## 🔖 Citation
-
-If you use this code in your work, please cite:
-
-```bibtex
-@misc{dl-fall25-math-verification,
-  title={Math Answer Verification using Fine-tuned Language Models},
-  author={Your Name},
-  year={2025},
-  publisher={GitHub},
-  url={https://github.com/yourusername/dl-fall25-kaggle}
+    # Training
+    "num_epochs": 2,
+    "learning_rate": 2e-4,
+    "per_device_batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "warmup_steps": 300,
+    "weight_decay": 0.01,
+    "fp16": False,
+    "bf16": True,
 }
 ```
 
 ---
 
-**Last Updated**: October 27, 2025  
-**Status**: 🟡 In Development  
-**Competition Deadline**: [Add deadline if known]
+## 📈 Lessons Learned
+
+### Model Capacity Matters
+Increasing LoRA rank from 16 to 32 significantly improved performance despite only adding 42M parameters.
+
+### Data Efficiency
+Using 99.5% of data for training (vs 90%) provided +1.4% accuracy improvement, demonstrating the value of maximizing training data when validation isn't used during training.
+
+### Training Duration
+2 epochs proved optimal - model continued learning without overfitting, suggesting mathematical reasoning benefits from extended training.
+
+### Prompt Engineering
+Explicit inclusion of reference solution in prompt context helped model better distinguish correct from incorrect answers.
 
 ---
 
-## 📌 Quick Links
+## 🎯 Future Work
 
-- [📓 Main Notebook](DL_Fall25_Clean_mac_TinyLlama_SFT_to_Submission-5.ipynb)
-- [📊 Handoff Report](docs/HANDOFF_REPORT.md)
-- [🐛 Troubleshooting Guide](docs/TROUBLESHOOTING.md)
-- [🎯 Project Roadmap](https://github.com/yourusername/dl-fall25-kaggle/projects)
-- [💬 Discussions](https://github.com/yourusername/dl-fall25-kaggle/discussions)
-
----
-
-**Happy Training! 🚀**
+- **Scaling to full dataset**: Train on complete 1M samples (currently 5%)
+- **Ensemble methods**: Combine multiple model checkpoints
+- **Curriculum learning**: Start with simple problems, progress to complex
+- **Larger LoRA ranks**: Experiment with rank 64, 128
+- **Different base models**: Try Llama-3-70B or Mixtral variants
