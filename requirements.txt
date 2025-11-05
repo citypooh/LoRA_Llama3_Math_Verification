@@ -1,9 +1,0 @@
-torch>=2.3
-transformers>=4.40
-peft>=0.12
-accelerate>=0.33
-datasets>=2.20
-evaluate>=0.4.2
-pandas>=2.1
-numpy>=1.26
-tqdm>=4.66
