@@ -20,7 +20,25 @@ Fine-tuning Llama-3.1-8B with LoRA for binary classification of mathematical ans
 - Stratified sampling to maintain class balance
 - 4-bit quantization for memory efficiency
 
-**Team Repository**: [https://github.com/yuktakul04/dl-midterm-f25](https://github.com/yuktakul04/dl-midterm-f25)
+**Result**: **85.8%** public leaderboard accuracy, **+13.2%** over the competition baseline.
+
+**Full write-up**: [`docs/Midterm_Report.pdf`](docs/Midterm_Report.pdf) — ACL-format report with the complete methodology, ablations, and error analysis.
+
+---
+
+## 👥 Team
+
+Midterm project for **CS-GY 6953 Deep Learning**, NYU Tandon, Fall 2025.
+
+| Member | Notebooks |
+|--------|-----------|
+| David Hong (sh8348) | `David_Try_1_Runtime_Disconnected.ipynb`, `David_Try_2_Success.ipynb` |
+| Byeong Heon Ahn (bha233) | `Ahn_Try_1_Success.ipynb`, `Ahn_Try_2_Not_Submitted.ipynb` |
+| Yukta Kulkarni (yk3213) | `Yukta_Setup.ipynb` |
+
+Because a single training run took 8–9 hours on an A100, we ran experiments in parallel, each sweeping a different part of the configuration space, and pooled the results. The submitted best model (85.8%) came from `David_Try_2_Success.ipynb`; this repository is the organized final version of our shared work.
+
+The team's original working repository is at [yuktakul04/dl-midterm-f25](https://github.com/yuktakul04/dl-midterm-f25).
 
 ---
 
@@ -149,8 +167,8 @@ Hugging Face account with Llama-3 access
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/yuktakul04/dl-midterm-f25.git
-cd dl-midterm-f25
+git clone https://github.com/citypooh/LoRA_Llama3_Math_Verification.git
+cd LoRA_Llama3_Math_Verification
 ```
 
 2. **Install dependencies** (in Google Colab):
@@ -161,9 +179,15 @@ cd dl-midterm-f25
 ```
 
 3. **Authenticate with Hugging Face**:
+
+Llama-3.1 is a gated model, so you need an access token. Store it in Colab Secrets
+(🔑 icon in the left sidebar) as `HF_TOKEN` rather than pasting it into a cell:
+
 ```python
+from google.colab import userdata
 from huggingface_hub import login
-login(token="your_hf_token_here")
+
+login(userdata.get("HF_TOKEN"))
 ```
 
 ### Running Training
@@ -187,23 +211,22 @@ Open one of our notebooks in Google Colab:
 ## 📁 Repository Structure
 
 ```
-dl-midterm-f25/
+LoRA_Llama3_Math_Verification/
 ├── notebooks/
-│   ├── Ahn_Try_1_Success.ipynb                 # Try 1: Fast training (84.4%)
-│   └── Ahn_Try_2_Not_Submitted.ipynb           # Try 2: Last training but couldn't submit in Kaggle due to late submission
-│   └──
-│   └── David_Try_1_Runtime_Disconnected.ipynb  # Try 1: Trained 1M data but runtime disconnected while training
-│   ├── David_Try_2_Success.ipynb               # Try 2: Best model (85.8%)
-│   └── Starter.ipynb                           # Competition starter code
-│   └──
-│   └──Yukta_Setup.ipynb                        # Basic setup notebook
+│   ├── Starter.ipynb                           # Competition starter code
+│   ├── Yukta_Setup.ipynb                       # Environment / data loading setup
+│   ├── Ahn_Try_1_Success.ipynb                 # Rank 16, 45K samples — 84.4%
+│   ├── Ahn_Try_2_Not_Submitted.ipynb           # Later run, missed the Kaggle deadline
+│   ├── David_Try_1_Runtime_Disconnected.ipynb  # Full 1M-sample attempt, Colab disconnected
+│   └── David_Try_2_Success.ipynb               # Rank 32, 49.75K samples — 85.8% (best)
 │
-├── src/
-│   ├── __init__.py
-|
 ├── submissions/
-│   ├── Ahn_Submission.csv               # Try 1 predictions
-│   └── David_Submission.csv             # Try 2 predictions
+│   ├── sample_sub.csv                          # Competition-provided format example
+│   ├── Ahn_Submission.csv                      # Try 1 predictions
+│   └── David_Submission.csv                    # Try 2 predictions (best)
+│
+├── docs/
+│   └── Midterm_Report.pdf                      # ACL-format write-up
 │
 ├── README.md
 └── .gitignore
